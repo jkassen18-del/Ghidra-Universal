@@ -34,10 +34,21 @@ Requires JDK 21 (matches the pinned Ghidra 11.4.3).
 ```bash
 ./gradlew build          # compile all modules
 ./gradlew fetchGhidra    # download + verify + extract pinned Ghidra into third_party/
-./gradlew :app:run       # run the bootstrap launcher
+export GHIDRA_INSTALL_DIR=$PWD/third_party/ghidra/ghidra_11.4.3_PUBLIC
+
+./gradlew :app:run       # launch the JavaFX GUI
 ```
 
 `fetchGhidra` pins the Ghidra release and its SHA-256 in `gradle.properties`.
+
+### Using it
+
+- **GUI:** open a binary; it is analyzed and the function list, decompiled C and
+  disassembly populate. The local MCP server starts automatically and its URL is
+  shown in the toolbar. Right-click a function to rename or comment (write-back).
+- **Headless:** `./gradlew :app:run --args="serve /path/to/binary"` analyzes a
+  binary and runs just the MCP server, printing the SSE URL.
+- **Connect your AI:** see [`docs/MCP.md`](docs/MCP.md).
 
 ## Modules
 
