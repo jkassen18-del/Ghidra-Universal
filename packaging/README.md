@@ -1,45 +1,62 @@
 # Packaging (portable, cross-platform)
 
-Goal: a **self-contained, portable bundle per OS** that a user unzips and runs,
-with no system Java install required. (Full implementation lands in Phase 5;
-this describes the strategy and the layout the launcher stubs assume.)
+A **self-contained, portable bundle per OS** that a user unzips and runs — no
+system Java install required. Built by the Gradle `bundle` / `portableZip`
+tasks (`gradle/packaging.gradle`).
 
-## What a bundle contains
+## Build
+
+```bash
+./gradlew fetchGhidra     # once: download + verify + extract the pinned Ghidra
+./gradlew bundle          # assemble dist/ghidra-universal/
+./gradlew portableZip     # -> dist/ghidra-universal-<os>.zip
+```
+
+## Bundle layout
 
 ```
 ghidra-universal/                 (the portable folder the user unzips)
-├── runtime/                      a trimmed JRE (jlink) — runs app + Ghidra
-├── app/                          Ghidra-Universal jars (core, engine, mcp, app)
-├── ghidra/                       the bundled Ghidra install (ghidra_<ver>_PUBLIC)
-├── licenses/                     Ghidra, OpenJDK, third-party notices
-├── ghidra-universal              launcher (Linux/macOS)   → packaging/launchers
-└── ghidra-universal.bat          launcher (Windows)       → packaging/launchers
+├── runtime/                      bundled JDK — runs the app AND Ghidra
+├── app/
+│   ├── lib/                      application + dependency jars (classpath)
+│   └── javafx/                   JavaFX module jars for this OS (module path)
+├── ghidra/                       the bundled Ghidra install
+├── licenses/                     Ghidra + runtime license notices
+├── ghidra-universal.sh           launcher (Linux/macOS)
+└── ghidra-universal.bat          launcher (Windows)
 ```
 
-The launcher points `GHIDRA_INSTALL_DIR` at the bundled `ghidra/` and runs the
-app on the bundled `runtime/`. `GhidraInstall.discover()` also finds the bundled
-copy automatically when the app's directory contains `ghidra/`.
+Run `./ghidra-universal.sh` (GUI) or `./ghidra-universal.sh serve <binary>`
+(headless MCP). The launcher points `GHIDRA_INSTALL_DIR` at the bundled
+`ghidra/` and runs on the bundled `runtime/`; `GhidraInstall.discover()` also
+finds the bundled copy automatically.
 
-## How bundles are built (Phase 5)
+## Why a full JDK as the runtime
 
-1. `./gradlew fetchGhidra` — download + verify + extract the pinned Ghidra
-   (see `gradle.properties`) into `third_party/`.
-2. **Runtime** — produce a trimmed JRE with `jlink` (or a full `jpackage` image).
-   Because Ghidra needs a *full* JDK feature set for its launcher, the bundled
-   runtime is a JDK-class image, not a minimal module set.
-   - Ghidra 11.4.3 → **JDK 21**. (Ghidra 12.x would require JDK 25.)
-3. **App image** — assemble the application jars + the runtime via `jpackage`
-   (`--type app-image`) for a double-clickable layout per OS.
-4. **Compose** — drop `third_party/ghidra/ghidra_<ver>_PUBLIC` into `ghidra/`,
-   copy license files, add the launcher stub, zip the folder.
+Ghidra compiles its analysis scripts **at runtime**, so the bundled runtime must
+include the Java compiler (`jdk.compiler`). Rather than curate a `jlink` module
+set broad enough for all of Ghidra, the bundle ships a full JDK (minus
+build-only dirs: `jmods`, `demo`, `man`, `include`, `sample`). JavaFX rides on
+the module path from `app/javafx/`.
 
-### Cross-platform note
-`jpackage` and `jlink` produce images for the OS they run on. Cross-platform
-bundles are therefore built on (or via CI runners for) each target OS:
-Windows, Linux, macOS. The Gradle tasks are written to run identically on each;
-CI matrix wiring is part of Phase 5.
+- Ghidra 11.4.3 → **JDK 21**. (Ghidra 12.x would require JDK 25.)
+- Approx size: ~1 GB (Ghidra ~765 MB, runtime ~205 MB, app ~10 MB).
+- *Future optimization:* a `jlink` runtime including `jdk.compiler` + the modules
+  Ghidra headless actually needs would cut the runtime substantially.
+
+On Unix the runtime is copied with `cp -a` so dangling symlinks in the JDK
+(e.g. the optional `libatk-wrapper.so` GTK shim) are preserved rather than
+followed.
+
+## Cross-platform
+
+`bundle` runs identically on each OS and copies **that OS's** JDK and JavaFX
+jars, so run it on each target (Windows, Linux, macOS) — a CI matrix with a
+job per OS, each doing `fetchGhidra` + `portableZip`, produces the three
+bundles. `portableZip` names its output `ghidra-universal-<version>-<os>.zip`.
 
 ## Why not a single tiny .exe
+
 Ghidra requires a JVM and a native decompiler; the JRE + Ghidra dominate the
-size (~hundreds of MB). The deliverable is a portable *folder* launched by a
-thin native stub — not a 5 MB single file.
+size. The deliverable is a portable *folder* launched by a thin stub — not a
+5 MB single file.

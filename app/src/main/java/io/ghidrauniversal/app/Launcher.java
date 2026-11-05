@@ -49,8 +49,8 @@ public final class Launcher {
                 .map(i -> "Ghidra:    " + i.installDir() + " (ready)")
                 .orElse("Ghidra:    not found. Set GHIDRA_INSTALL_DIR or use a portable bundle."));
         System.out.println();
-        System.out.println("Run the MCP server:  ghidra-universal serve <binary> [port]");
-        System.out.println("GUI launches here in a later phase.");
+        System.out.println("Launch the GUI:      ghidra-universal");
+        System.out.println("Headless MCP server: ghidra-universal serve <binary> [port]");
     }
 
     private static void serve(String[] args) throws Exception {

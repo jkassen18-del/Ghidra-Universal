@@ -1,7 +1,10 @@
 @echo off
 REM Portable launcher for Ghidra-Universal (Windows).
-REM Assumes the bundle layout described in packaging\README.md:
-REM   <bundle>\runtime, <bundle>\app, <bundle>\ghidra
+REM Bundle layout (see packaging\README.md):
+REM   <bundle>\runtime    bundled JDK (runs the app AND Ghidra)
+REM   <bundle>\app\lib     application + dependency jars
+REM   <bundle>\app\javafx  JavaFX module jars (Windows)
+REM   <bundle>\ghidra      bundled Ghidra install
 setlocal
 
 set "BUNDLE=%~dp0"
@@ -12,6 +15,10 @@ if not exist "%JAVA%" set "JAVA=java.exe"
 
 if "%GHIDRA_INSTALL_DIR%"=="" set "GHIDRA_INSTALL_DIR=%BUNDLE%\ghidra"
 
-"%JAVA%" -Dapp.home="%BUNDLE%" -cp "%BUNDLE%\app\*" io.ghidrauniversal.app.Launcher %*
+"%JAVA%" -Dapp.home="%BUNDLE%" ^
+  --module-path "%BUNDLE%\app\javafx" ^
+  --add-modules javafx.controls,javafx.graphics,javafx.base ^
+  -cp "%BUNDLE%\app\lib\*" ^
+  io.ghidrauniversal.app.Launcher %*
 
 endlocal
