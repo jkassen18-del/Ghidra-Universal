@@ -5,6 +5,7 @@ import io.ghidrauniversal.core.model.AnalysisResult;
 import io.ghidrauniversal.core.project.GuProject;
 import io.ghidrauniversal.core.project.Workspace;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -12,7 +13,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -126,7 +129,7 @@ public final class HeadlessGhidraEngine implements GhidraEngine {
         log.accept("[" + label + "] " + String.join(" ", cmd));
         try {
             ProcessRunner.Result result = ProcessRunner.run(
-                    cmd, install.installDir(), timeout, log);
+                    cmd, install.installDir(), timeout, log, ghidraEnv());
             if (result.timedOut()) {
                 throw new EngineException("Ghidra " + label + " timed out after " + timeout + "s");
             }
@@ -140,6 +143,28 @@ public final class HeadlessGhidraEngine implements GhidraEngine {
             Thread.currentThread().interrupt();
             throw new EngineException("interrupted during Ghidra " + label, e);
         }
+    }
+
+    /**
+     * Environment for the Ghidra subprocess. Ghidra's {@code analyzeHeadless}
+     * finds its JVM via {@code JAVA_HOME}; we point it at the JVM this app is
+     * running on — which, in a packaged build, is the bundled runtime — so the
+     * tool works on a machine with no system Java installed. (Honors an
+     * explicit {@code GU_GHIDRA_JAVA_HOME} override if set.)
+     */
+    private Map<String, String> ghidraEnv() {
+        String javaHome = System.getenv().getOrDefault(
+                "GU_GHIDRA_JAVA_HOME", System.getProperty("java.home"));
+        if (javaHome == null || javaHome.isBlank()) {
+            return Map.of();
+        }
+        Map<String, String> env = new HashMap<>();
+        env.put("JAVA_HOME", javaHome);
+        String binDir = Path.of(javaHome, "bin").toString();
+        String path = System.getenv("PATH");
+        env.put("PATH", path == null || path.isBlank()
+                ? binDir : binDir + File.pathSeparator + path);
+        return env;
     }
 
     private AnalysisResult parse(Path outJson) throws EngineException {

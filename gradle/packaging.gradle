@@ -16,6 +16,7 @@ project(':app') {
         group = 'bundling'
         description = 'Assemble dist/ghidra-universal for the current OS.'
         dependsOn tasks.named('jar')
+        dependsOn configurations.runtimeClasspath   // ensure dependency jars are (re)built
         dependsOn rootProject.tasks.named('fetchGhidra')
 
         doLast {

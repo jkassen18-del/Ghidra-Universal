@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -25,9 +26,22 @@ final class ProcessRunner {
      */
     static Result run(List<String> command, Path workingDir, long timeoutSeconds,
                       Consumer<String> lineSink) throws IOException, InterruptedException {
+        return run(command, workingDir, timeoutSeconds, lineSink, Map.of());
+    }
+
+    /**
+     * Run {@code command}, additionally setting/overriding the given environment
+     * variables in the child process.
+     */
+    static Result run(List<String> command, Path workingDir, long timeoutSeconds,
+                      Consumer<String> lineSink, Map<String, String> extraEnv)
+            throws IOException, InterruptedException {
         ProcessBuilder pb = new ProcessBuilder(command);
         if (workingDir != null) {
             pb.directory(workingDir.toFile());
+        }
+        if (extraEnv != null && !extraEnv.isEmpty()) {
+            pb.environment().putAll(extraEnv);
         }
         pb.redirectErrorStream(true);
 
