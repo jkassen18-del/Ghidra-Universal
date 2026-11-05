@@ -136,19 +136,24 @@ project(':app') {
         def appJar = tasks.jar.archiveFile.get().asFile.name
         def appVersion = (project.version as String).replace('-SNAPSHOT', '')
 
-        // On Windows the JDK can be used directly as the runtime image. On Unix,
+        // The JDK can usually be used directly as the runtime image. On Linux
         // some JDKs carry dangling symlinks (e.g. libatk-wrapper.so) that break
-        // jpackage's runtime copy, so hand it a sanitized `cp -a` copy instead.
+        // jpackage's runtime copy, so there we hand it a sanitized `cp -a` copy
+        // with dangling symlinks pruned. (Windows and macOS JDKs don't need it;
+        // macOS `find` also lacks GNU's -xtype.)
+        def needsSanitize = currentOs.isLinux()
         def runtimeSrc = new File(jpWork, 'runtime-src')
-        def runtimeImage = currentOs.isWindows() ? javaHome : runtimeSrc.toString()
+        def runtimeImage = needsSanitize ? runtimeSrc.toString() : javaHome
 
         doFirst {
             delete new File(jpImageParent, 'ghidra-universal'); jpImageParent.mkdirs()
-            if (!currentOs.isWindows()) {
+            if (needsSanitize) {
                 delete runtimeSrc
                 runtimeSrc.mkdirs()
                 exec { commandLine 'cp', '-a', "${javaHome}/.", runtimeSrc.toString() }
-                exec { commandLine 'find', runtimeSrc.toString(), '-xtype', 'l', '-delete' }
+                // Remove dangling symlinks so jpackage's copy doesn't choke.
+                exec { commandLine 'bash', '-c',
+                       "find '${runtimeSrc}' -type l ! -exec test -e {} ';' -print0 | xargs -0 -r rm -f" }
             }
         }
 
