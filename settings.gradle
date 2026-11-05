@@ -1,0 +1,6 @@
+rootProject.name = 'ghidra-universal'
+
+include 'core'
+include 'engine-ghidra'
+include 'mcp-server'
+include 'app'

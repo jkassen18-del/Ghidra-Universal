@@ -1,0 +1,25 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.settings/
+.classpath
+.project
+bin/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Ghidra-Universal
+/dist/
+/.ghidra-universal/
+# Bundled third-party runtimes/tools fetched at build time
+/third_party/ghidra/
+/third_party/jre/
+*.log
