@@ -1,0 +1,52 @@
+name: Portable build
+
+# Builds the portable app-image (with a native launcher — ghidra-universal.exe
+# on Windows) for each OS and uploads it as a downloadable artifact.
+#
+# Run it from the repo's Actions tab: select "Portable build" -> "Run workflow".
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: windows
+          - os: ubuntu-latest
+            label: linux
+          - os: macos-latest
+            label: macos
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.label }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Download & verify Ghidra
+        run: ./gradlew --no-daemon fetchGhidra
+        shell: bash
+
+      - name: Build portable app-image (+ zip)
+        run: ./gradlew --no-daemon jpackageZip
+        shell: bash
+
+      - name: Upload portable bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: ghidra-universal-${{ matrix.label }}
+          path: dist/ghidra-universal-*-${{ matrix.label }}-app.zip
+          if-no-files-found: error
+          retention-days: 30

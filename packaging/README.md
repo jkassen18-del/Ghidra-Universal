@@ -6,11 +6,44 @@ tasks (`gradle/packaging.gradle`).
 
 ## Build
 
+Two bundle styles are available:
+
+**A) Native app-image with a real launcher executable (recommended)** — uses
+`jpackage`, so the launcher is `ghidra-universal.exe` on Windows (a plain
+executable on Linux/macOS):
+
 ```bash
 ./gradlew fetchGhidra     # once: download + verify + extract the pinned Ghidra
-./gradlew bundle          # assemble dist/ghidra-universal/
-./gradlew portableZip     # -> dist/ghidra-universal-<os>.zip
+./gradlew jpackageExe     # -> dist/jpackage/ghidra-universal/  (bin/ghidra-universal[.exe])
+./gradlew jpackageZip     # -> dist/ghidra-universal-<version>-<os>-app.zip
 ```
+
+**B) Script-launched folder bundle** — a folder with `.sh`/`.bat` launchers:
+
+```bash
+./gradlew fetchGhidra
+./gradlew bundle          # assemble dist/ghidra-universal/
+./gradlew portableZip     # -> dist/ghidra-universal-<version>-<os>.zip
+```
+
+### Getting a Windows .exe without a Windows machine
+
+`jpackage` only builds for the OS it runs on, so the Windows `.exe` is built on
+a Windows runner. The repo includes a GitHub Actions workflow
+(`.github/workflows/portable-build.yml`): from the repo's **Actions** tab, run
+**Portable build**; it produces `ghidra-universal-windows` (and linux/macos)
+artifacts you can download — each a zip containing the app folder with the
+launcher executable.
+
+### jpackage runtime notes
+
+- The runtime is a **full JDK** (`--runtime-image`), not a `jlink` image:
+  jpackage strips `bin/java` from jlink runtimes, but Ghidra's `analyzeHeadless`
+  needs `$JAVA_HOME/bin/java` and a compiler. The engine points Ghidra at the
+  app's own runtime at run time.
+- JavaFX is injected into the image's app dir and added via the module path.
+- On Unix the JDK is copied with `cp -a` and dangling symlinks are pruned before
+  `jpackage` consumes it (some JDKs ship a dangling `libatk-wrapper.so`).
 
 ## Bundle layout
 

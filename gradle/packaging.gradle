@@ -99,4 +99,111 @@ project(':app') {
         destinationDirectory = distRoot
         from(bundleDir) { into 'ghidra-universal' }
     }
+
+    // --- jpackage: a native app-image with a real launcher executable ---
+    // Produces dist/jpackage/ghidra-universal/ containing ghidra-universal(.exe),
+    // a bundled runtime (all JDK modules + JavaFX, so Ghidra works and has a
+    // compiler), and the Ghidra install. On Windows the launcher is a .exe.
+
+    def jpWork = project.layout.buildDirectory.dir('jpackage').get().asFile
+    def jpInput = new File(jpWork, 'input')
+    def jpFx = new File(jpWork, 'fx')
+    def jpImageParent = new File(distRoot, 'jpackage')
+
+    tasks.register('jpackageStage') {
+        group = 'bundling'
+        dependsOn tasks.named('jar')
+        dependsOn configurations.runtimeClasspath
+        dependsOn rootProject.tasks.named('fetchGhidra')
+        doLast {
+            delete jpInput, jpFx
+            jpInput.mkdirs(); jpFx.mkdirs()
+            def jars = configurations.runtimeClasspath.resolve() + [tasks.jar.archiveFile.get().asFile]
+            jars.each { f ->
+                copy { from f; into (f.name.contains('javafx') ? jpFx : jpInput) }
+            }
+        }
+    }
+
+    tasks.register('jpackageImage', Exec) {
+        group = 'bundling'
+        description = 'Build a portable app-image with a native launcher (ghidra-universal[.exe]).'
+        dependsOn 'jpackageStage'
+
+        def javaHome = System.getProperty('java.home')
+        def currentOs = org.gradle.internal.os.OperatingSystem.current()
+        def jpackageBin = new File(javaHome, 'bin/jpackage' + (currentOs.isWindows() ? '.exe' : '')).toString()
+        def appJar = tasks.jar.archiveFile.get().asFile.name
+        def appVersion = (project.version as String).replace('-SNAPSHOT', '')
+
+        // On Windows the JDK can be used directly as the runtime image. On Unix,
+        // some JDKs carry dangling symlinks (e.g. libatk-wrapper.so) that break
+        // jpackage's runtime copy, so hand it a sanitized `cp -a` copy instead.
+        def runtimeSrc = new File(jpWork, 'runtime-src')
+        def runtimeImage = currentOs.isWindows() ? javaHome : runtimeSrc.toString()
+
+        doFirst {
+            delete new File(jpImageParent, 'ghidra-universal'); jpImageParent.mkdirs()
+            if (!currentOs.isWindows()) {
+                delete runtimeSrc
+                runtimeSrc.mkdirs()
+                exec { commandLine 'cp', '-a', "${javaHome}/.", runtimeSrc.toString() }
+                exec { commandLine 'find', runtimeSrc.toString(), '-xtype', 'l', '-delete' }
+            }
+        }
+
+        // The runtime is a FULL JDK (via --runtime-image), not a jlink image:
+        // jpackage strips bin/java from jlink runtimes, but Ghidra's
+        // analyzeHeadless needs $JAVA_HOME/bin/java (and a compiler). JavaFX is
+        // supplied on the module path from the app dir ($APPDIR/javafx).
+        commandLine jpackageBin,
+                '--type', 'app-image',
+                '--name', 'ghidra-universal',
+                '--dest', jpImageParent.toString(),
+                '--input', jpInput.toString(),
+                '--main-jar', appJar,
+                '--main-class', 'io.ghidrauniversal.app.Launcher',
+                '--runtime-image', runtimeImage,
+                '--java-options', '-Dapp.home=$APPDIR',
+                '--java-options', '--module-path', '--java-options', '$APPDIR/javafx',
+                '--java-options', '--add-modules',
+                '--java-options', 'javafx.controls,javafx.graphics,javafx.base',
+                '--app-version', appVersion
+
+        doLast {
+            // Inject JavaFX and Ghidra into the image's app directory ($APPDIR).
+            def imageRoot = new File(jpImageParent, 'ghidra-universal')
+            def appData
+            if (currentOs.isWindows()) {
+                appData = new File(imageRoot, 'app')
+            } else if (currentOs.isMacOsX()) {
+                appData = new File(jpImageParent, 'ghidra-universal.app/Contents/app')
+            } else {
+                appData = new File(imageRoot, 'lib/app')
+            }
+            copy { from jpFx; into new File(appData, 'javafx') }
+            copy {
+                from rootProject.ext.ghidraInstallDir
+                into new File(appData, 'ghidra')
+            }
+            logger.lifecycle("jpackage app-image at ${imageRoot} (JavaFX + Ghidra injected into ${appData})")
+        }
+    }
+
+    tasks.register('jpackageExe') {
+        group = 'bundling'
+        description = 'Alias: build the portable app-image with the native launcher.'
+        dependsOn 'jpackageImage'
+    }
+
+    tasks.register('jpackageZip', Zip) {
+        group = 'bundling'
+        description = 'Zip the jpackage app-image for distribution.'
+        dependsOn 'jpackageImage'
+        def os = org.gradle.internal.os.OperatingSystem.current()
+        def osName = os.isWindows() ? 'windows' : (os.isMacOsX() ? 'macos' : 'linux')
+        archiveFileName = "ghidra-universal-${project.version}-${osName}-app.zip"
+        destinationDirectory = distRoot
+        from(jpImageParent)
+    }
 }
