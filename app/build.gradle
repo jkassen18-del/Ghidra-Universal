@@ -1,8 +1,8 @@
-// app — application entry point and (from Phase 4) the JavaFX GUI.
-// Phase 1 ships a plain bootstrap launcher so the build is runnable end to end.
+// app — application entry point, headless `serve` CLI, and the JavaFX GUI.
 
 plugins {
     id 'application'
+    id 'org.openjfx.javafxplugin' version '0.1.0'
 }
 
 dependencies {
@@ -11,6 +11,20 @@ dependencies {
     implementation project(':mcp-server')
 }
 
+javafx {
+    version = '21.0.2'
+    modules = ['javafx.controls']
+}
+
 application {
     mainClass = 'io.ghidrauniversal.app.Launcher'
+}
+
+// Forward headless-validation system properties (-Dgu.*) from -P project props to the run JVM.
+run {
+    ['gu.autoOpen', 'gu.screenshot', 'gu.exitAfterMs'].each { k ->
+        if (project.hasProperty(k)) {
+            systemProperty k, project.getProperty(k)
+        }
+    }
 }

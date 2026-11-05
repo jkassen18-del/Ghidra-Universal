@@ -27,13 +27,14 @@ import java.util.Optional;
 public final class Launcher {
 
     public static void main(String[] args) throws Exception {
-        String command = args.length > 0 ? args[0] : "info";
+        String command = args.length > 0 ? args[0] : "gui";
         switch (command) {
+            case "gui" -> GhidraUniversalApp.launchGui(args);
             case "serve" -> serve(args);
             case "info" -> info();
             default -> {
                 System.err.println("unknown command: " + command);
-                System.err.println("usage: (info) | serve <binary> [port]");
+                System.err.println("usage: (gui) | serve <binary> [port] | info");
                 System.exit(2);
             }
         }
