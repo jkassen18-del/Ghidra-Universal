@@ -1,0 +1,7 @@
+// engine-ghidra — drives Ghidra's headless analyzer as a subprocess.
+// Does NOT compile against Ghidra's jars; the scripts under
+// src/main/resources/ghidra_scripts run inside Ghidra's own classpath.
+
+dependencies {
+    api project(':core')
+}

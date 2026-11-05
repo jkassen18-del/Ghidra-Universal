@@ -1,0 +1,49 @@
+// Root build for Ghidra-Universal.
+// Shared configuration applied to every module.
+
+plugins {
+    id 'java'
+}
+
+allprojects {
+    group = 'io.ghidrauniversal'
+    version = '0.1.0-SNAPSHOT'
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+// Bundling tasks: fetch/verify/extract the pinned Ghidra release.
+apply from: "$rootDir/gradle/bundling.gradle"
+
+subprojects {
+    apply plugin: 'java-library'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    ext {
+        jacksonVersion = '2.17.2'
+        javafxVersion = '21.0.2'
+        junitVersion = '5.10.2'
+    }
+
+    dependencies {
+        testImplementation platform("org.junit:junit-bom:${junitVersion}")
+        testImplementation 'org.junit.jupiter:junit-jupiter'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = 'UTF-8'
+        options.compilerArgs << '-Xlint:all,-processing'
+    }
+
+    test {
+        useJUnitPlatform()
+    }
+}

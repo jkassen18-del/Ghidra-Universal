@@ -1,0 +1,16 @@
+// app — application entry point and (from Phase 4) the JavaFX GUI.
+// Phase 1 ships a plain bootstrap launcher so the build is runnable end to end.
+
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':core')
+    implementation project(':engine-ghidra')
+    implementation project(':mcp-server')
+}
+
+application {
+    mainClass = 'io.ghidrauniversal.app.Launcher'
+}

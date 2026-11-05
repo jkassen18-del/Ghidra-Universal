@@ -1,0 +1,48 @@
+// Bundling: fetch, verify and extract the pinned Ghidra release.
+// Applied from the root build. Output lives under third_party/ (gitignored).
+
+import java.security.MessageDigest
+
+ext.ghidraThirdParty = rootProject.layout.projectDirectory.dir('third_party/ghidra').asFile
+ext.ghidraZip = new File(ghidraThirdParty, 'ghidra_' + ghidraVersion + '_PUBLIC.zip')
+// The distribution unzips to a top-level directory named ghidra_<version>_PUBLIC.
+ext.ghidraInstallDir = new File(ghidraThirdParty, 'ghidra_' + ghidraVersion + '_PUBLIC')
+
+tasks.register('downloadGhidra') {
+    description = "Download the pinned Ghidra ${ghidraVersion} release zip."
+    group = 'bundling'
+    outputs.file(ghidraZip)
+    doLast {
+        ghidraThirdParty.mkdirs()
+        if (ghidraZip.exists() && sha256(ghidraZip).equalsIgnoreCase(ghidraSha256)) {
+            logger.lifecycle("Ghidra zip already present and verified: ${ghidraZip}")
+            return
+        }
+        logger.lifecycle("Downloading ${ghidraDownloadUrl}")
+        new URI(ghidraDownloadUrl).toURL().withInputStream { input ->
+            ghidraZip.withOutputStream { out -> out << input }
+        }
+        String actual = sha256(ghidraZip)
+        if (!actual.equalsIgnoreCase(ghidraSha256)) {
+            ghidraZip.delete()
+            throw new GradleException("SHA-256 mismatch for Ghidra zip.\n  expected ${ghidraSha256}\n  actual   ${actual}")
+        }
+        logger.lifecycle("Verified SHA-256: ${actual}")
+    }
+}
+
+tasks.register('fetchGhidra', Copy) {
+    description = "Download, verify and extract Ghidra ${ghidraVersion} into third_party/."
+    group = 'bundling'
+    dependsOn 'downloadGhidra'
+    onlyIf { !new File(ghidraInstallDir, 'support/analyzeHeadless').exists() }
+    from(zipTree(ghidraZip))
+    into(ghidraThirdParty)
+    doLast { logger.lifecycle("Ghidra extracted to ${ghidraInstallDir}") }
+}
+
+static String sha256(File file) {
+    MessageDigest md = MessageDigest.getInstance('SHA-256')
+    file.eachByte(1024 * 1024) { bytes, len -> md.update(bytes, 0, len) }
+    return md.digest().collect { String.format('%02x', it) }.join()
+}

@@ -1,0 +1,7 @@
+// mcp-server — local HTTP/SSE MCP endpoint exposing the engine to AI clients.
+// Uses the JDK's built-in HttpServer; no web framework dependency.
+
+dependencies {
+    api project(':core')
+    api project(':engine-ghidra')
+}

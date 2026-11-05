@@ -1,0 +1,5 @@
+// core — shared models, project store, job runner. No GUI, no Ghidra, no network.
+
+dependencies {
+    api "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
+}
