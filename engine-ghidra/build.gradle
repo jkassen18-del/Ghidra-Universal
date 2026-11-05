@@ -5,3 +5,16 @@
 dependencies {
     api project(':core')
 }
+
+// Manual end-to-end validation against real Ghidra. Requires GHIDRA_INSTALL_DIR.
+//   ./gradlew :engine-ghidra:engineSmoke -Pbinary=/path/to/sample [-Pworkspace=/tmp/gu]
+tasks.register('engineSmoke', JavaExec) {
+    group = 'verification'
+    description = 'Run the Ghidra engine end to end against a binary.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'io.ghidrauniversal.engine.EngineRunner'
+    def binaryPath = project.findProperty('binary') ?: ''
+    def workspacePath = project.findProperty('workspace')
+            ?: "${layout.buildDirectory.get()}/engine-smoke-ws"
+    args = [binaryPath.toString(), workspacePath.toString()]
+}

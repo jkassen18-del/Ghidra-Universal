@@ -17,6 +17,7 @@ public record AnalysisResult(
         ProgramInfo program,
         List<FunctionInfo> functions,
         List<DecompiledFunction> decompiled,
+        List<Disassembly> disassembly,
         List<StringInfo> strings,
         List<ImportInfo> imports,
         List<ExportInfo> exports,
