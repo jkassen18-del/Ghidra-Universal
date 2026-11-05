@@ -1,0 +1,101 @@
+// Packaging: assemble a portable, self-contained bundle for the current OS.
+//
+//   ./gradlew bundle        -> dist/ghidra-universal/   (runtime + app + ghidra)
+//   ./gradlew portableZip   -> dist/ghidra-universal-<os>.zip
+//
+// Runs identically on Windows / Linux / macOS; a CI matrix builds one per OS.
+// The runtime is a full bundled JDK so it can run both the JavaFX app and
+// Ghidra headless (which compiles scripts at runtime and so needs jdk.compiler).
+
+project(':app') {
+
+    def distRoot = rootProject.layout.projectDirectory.dir('dist').asFile
+    def bundleDir = new File(distRoot, 'ghidra-universal')
+
+    tasks.register('stageBundle') {
+        group = 'bundling'
+        description = 'Assemble dist/ghidra-universal for the current OS.'
+        dependsOn tasks.named('jar')
+        dependsOn rootProject.tasks.named('fetchGhidra')
+
+        doLast {
+            delete bundleDir
+            bundleDir.mkdirs()
+
+            // 1) Bundled runtime: the current JDK, minus build-time-only dirs.
+            //    Use `cp -a` on Unix so dangling symlinks (e.g. the optional
+            //    libatk-wrapper.so GTK shim) are copied as-is instead of followed.
+            def javaHome = System.getProperty('java.home')
+            def runtimeDir = new File(bundleDir, 'runtime')
+            def currentOs = org.gradle.internal.os.OperatingSystem.current()
+            if (currentOs.isWindows()) {
+                copy {
+                    from javaHome
+                    into runtimeDir
+                    exclude 'jmods/**', 'demo/**', 'man/**', 'include/**', 'sample/**'
+                }
+            } else {
+                runtimeDir.mkdirs()
+                exec { commandLine 'cp', '-a', "${javaHome}/.", runtimeDir.toString() }
+                ['jmods', 'demo', 'man', 'include', 'sample'].each {
+                    delete new File(runtimeDir, it)
+                }
+            }
+
+            // 2) Application + dependency jars, with JavaFX split onto its own
+            //    module path and everything else on the classpath.
+            def appLib = new File(bundleDir, 'app/lib')
+            def appFx = new File(bundleDir, 'app/javafx')
+            appLib.mkdirs(); appFx.mkdirs()
+            def jars = configurations.runtimeClasspath.resolve() + [tasks.jar.archiveFile.get().asFile]
+            jars.each { f ->
+                copy { from f; into (f.name.contains('javafx') ? appFx : appLib) }
+            }
+
+            // 3) Bundled Ghidra.
+            copy {
+                from rootProject.ext.ghidraInstallDir
+                into new File(bundleDir, 'ghidra')
+            }
+
+            // 4) Launchers.
+            copy {
+                from rootProject.file('packaging/launchers')
+                into bundleDir
+            }
+            new File(bundleDir, 'ghidra-universal.sh').setExecutable(true, false)
+
+            // 5) Licenses / notices.
+            def lic = new File(bundleDir, 'licenses'); lic.mkdirs()
+            ['LICENSE', 'GPL', 'DISCLAIMER.md', 'bom.json'].each { name ->
+                def src = new File(rootProject.ext.ghidraInstallDir, name)
+                if (src.exists()) {
+                    copy { from src; into new File(lic, 'ghidra') }
+                }
+            }
+            def legal = new File(javaHome, 'legal')
+            if (legal.exists()) {
+                copy { from legal; into new File(lic, 'runtime') }
+            }
+
+            logger.lifecycle("Bundle staged at ${bundleDir}")
+        }
+    }
+
+    tasks.register('bundle') {
+        group = 'bundling'
+        description = 'Alias for stageBundle.'
+        dependsOn 'stageBundle'
+    }
+
+    tasks.register('portableZip', Zip) {
+        group = 'bundling'
+        description = 'Zip the staged bundle for distribution.'
+        dependsOn 'stageBundle'
+        def os = org.gradle.internal.os.OperatingSystem.current()
+        def osName = os.isWindows() ? 'windows' : (os.isMacOsX() ? 'macos' : 'linux')
+        archiveFileName = "ghidra-universal-${project.version}-${osName}.zip"
+        destinationDirectory = distRoot
+        from(bundleDir) { into 'ghidra-universal' }
+    }
+}

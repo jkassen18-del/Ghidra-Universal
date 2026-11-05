@@ -17,6 +17,9 @@ allprojects {
 // Bundling tasks: fetch/verify/extract the pinned Ghidra release.
 apply from: "$rootDir/gradle/bundling.gradle"
 
+// Packaging tasks: assemble a portable per-OS bundle.
+apply from: "$rootDir/gradle/packaging.gradle"
+
 subprojects {
     apply plugin: 'java-library'
 
